@@ -2,7 +2,6 @@ import type { IndustryPack, ParameterDefinition, PriceBookConfig } from "./model
 
 const common: ParameterDefinition[] = [
   { id: "targetAudience", label: "目标人群", dataType: "text", required: true },
-  { id: "cityCount", label: "覆盖城市", dataType: "number", unit: "个", required: true },
   {
     id: "reportDepth",
     label: "报告深度",
@@ -43,6 +42,7 @@ export const researchIndustryPack: IndustryPack = {
           required: true,
         },
         { id: "questionnaireMinutes", label: "问卷时长", dataType: "number", unit: "分钟", required: true },
+        { id: "cityCount", label: "覆盖省份", dataType: "number", unit: "个", required: true },
         ...common,
       ],
     },
@@ -66,6 +66,7 @@ export const researchIndustryPack: IndustryPack = {
           ],
         },
         { id: "transcriptRequired", label: "需要逐字稿", dataType: "boolean", required: false },
+        { id: "cityCount", label: "覆盖城市", dataType: "number", unit: "个", required: true },
         ...common,
       ],
     },
@@ -102,6 +103,7 @@ export const researchIndustryPack: IndustryPack = {
           ],
         },
         { id: "transcriptRequired", label: "需要逐字稿", dataType: "boolean", required: false },
+        { id: "cityCount", label: "覆盖城市", dataType: "number", unit: "个", required: true },
         ...common,
       ],
     },
@@ -134,6 +136,7 @@ export const researchIndustryPack: IndustryPack = {
         { id: "expertScarcity", label: "专家稀缺度", dataType: "singleSelect", required: true, visibleWhen: { field: "qualitativeMethods", includes: "expert_interview" }, options: [{ label: "常规行业专家", value: "standard" }, { label: "资深或细分领域专家", value: "scarce" }, { label: "高管或极稀缺专家", value: "rare" }] },
         { id: "recruitmentDifficulty", label: "定性招募难度", dataType: "singleSelect", required: true, options: [{ label: "普通大众", value: "general" }, { label: "特定品牌或行为人群", value: "specific" }, { label: "高价值或稀缺人群", value: "rare" }] },
         { id: "transcriptRequired", label: "需要录音与逐字稿", dataType: "boolean", required: false },
+        { id: "cityCount", label: "覆盖城市", dataType: "number", unit: "个", required: true },
         ...common,
       ],
     },

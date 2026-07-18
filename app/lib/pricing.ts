@@ -108,6 +108,7 @@ export function calculateLines(
     }
   }
   const adjusted = lines.map((item) => {
+    if (item.id.startsWith("labor_")) return item;
     const override = costOverrides[item.id];
     if (!override) return item;
     return { ...item, costUnitPriceCents: override.costUnitPriceCents, costAmountCents: Math.round(item.quantity * override.costUnitPriceCents), costOverrideReason: override.reason };

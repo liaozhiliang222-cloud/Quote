@@ -44,6 +44,7 @@ test("keeps privacy, pricing, and PWA foundations in source", async () => {
   assert.match(pricing, /reportDepth !== "none"/);
   assert.doesNotMatch(pricing, /eval\s*\(/);
   assert.match(industryPack, /无需报告/);
+  assert.match(industryPack, /覆盖省份/);
   assert.match(industryPack, /研究总监/);
   assert.match(industryPack, /定性研究方法/);
   assert.match(industryPack, /焦点小组\/座谈会/);
@@ -54,10 +55,12 @@ test("keeps privacy, pricing, and PWA foundations in source", async () => {
   assert.match(pricing, /includesExpertInterview/);
   assert.match(pricing, /manualCosts/);
   assert.match(pricing, /costOverrides/);
+  assert.match(pricing, /item\.id\.startsWith\("labor_"\)/);
   assert.match(models, /priceBookSnapshot/);
   assert.match(models, /multiSelect/);
   assert.match(page, /成本与价格库/);
   assert.match(page, /项目成本调整/);
+  assert.match(page, /人员工时成本按价格库固定单价计算/);
   assert.match(page, /利润测算/);
   assert.match(page, /客户折扣方案/);
   assert.equal(JSON.parse(manifest).display, "standalone");
