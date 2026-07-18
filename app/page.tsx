@@ -19,8 +19,16 @@ const defaults: Record<ResearchProjectTypeId, QuoteProject["parameters"]> = {
   quantitative_online: { sampleSize: 1000, incidenceRate: 50, questionnaireMinutes: 12, targetAudience: "过去 3 个月购买过品类产品的消费者", cityCount: 3, reportDepth: "standard", ...reportWorkload("standard") },
   in_depth_interview: { interviewCount: 12, sessionDurationMinutes: 60, recruitmentDifficulty: "specific", transcriptRequired: true, targetAudience: "核心用户与流失用户", cityCount: 2, reportDepth: "standard", ...reportWorkload("standard") },
   focus_group: { sessionCount: 4, participantsPerSession: 8, backupParticipantsPerSession: 2, sessionDurationMinutes: 120, recruitmentDifficulty: "specific", deliveryMode: "offline", transcriptRequired: true, targetAudience: "目标品牌消费者", cityCount: 2, reportDepth: "deep", ...reportWorkload("deep") },
-  mixed_research: { sampleSize: 800, qualitativeMethods: ["in_depth_interview", "focus_group"], interviewCount: 10, sessionDurationMinutes: 60, sessionCount: 4, participantsPerSession: 8, backupParticipantsPerSession: 2, deliveryMode: "offline", recruitmentDifficulty: "specific", transcriptRequired: true, targetAudience: "目标品类消费者", cityCount: 3, reportDepth: "deep", ...reportWorkload("deep") },
+  mixed_research: { sampleSize: 800, qualitativeMethods: ["in_depth_interview", "focus_group"], interviewCount: 10, sessionDurationMinutes: 60, sessionCount: 4, participantsPerSession: 8, backupParticipantsPerSession: 2, deliveryMode: "offline", expertCount: 6, expertScarcity: "scarce", recruitmentDifficulty: "specific", transcriptRequired: true, targetAudience: "目标品类消费者", cityCount: 3, reportDepth: "deep", ...reportWorkload("deep") },
 };
+
+function normalizePriceBook(stored: PriceBookConfig): PriceBookConfig {
+  return {
+    ...stored,
+    items: defaultPriceBook.items.map((fallback) => stored.items.find((item) => item.id === fallback.id) ?? fallback),
+    laborRoles: defaultPriceBook.laborRoles.map((fallback) => stored.laborRoles.find((role) => role.id === fallback.id) ?? fallback),
+  };
+}
 
 function createProject(type: ResearchProjectTypeId, priceBook: PriceBookConfig): QuoteProject {
   const now = new Date().toISOString();
@@ -130,7 +138,7 @@ export default function Home() {
 
   useEffect(() => {
     getProjects().then(setProjects).catch(() => setSavedState("本地存储暂不可用"));
-    getPriceBook().then((stored) => { if (stored) setPriceBook(stored); }).catch(() => setPriceSavedState("价格库读取失败"));
+    getPriceBook().then((stored) => { if (stored) setPriceBook(normalizePriceBook(stored)); }).catch(() => setPriceSavedState("价格库读取失败"));
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");
     const handler = (event: Event) => { event.preventDefault(); setInstallPrompt(event); };
     window.addEventListener("beforeinstallprompt", handler);
@@ -168,7 +176,7 @@ export default function Home() {
   };
 
   const openProject = (project: QuoteProject) => {
-    const snapshot = project.priceBookSnapshot ?? structuredClone(defaultPriceBook);
+    const snapshot = normalizePriceBook(project.priceBookSnapshot ?? structuredClone(defaultPriceBook));
     setActiveProject({ ...project, priceBookSnapshot: snapshot, priceBookVersion: project.priceBookVersion ?? snapshot.version, lines: calculateLines(project.projectTypeId, project.parameters, snapshot) });
     setView("quote");
   };

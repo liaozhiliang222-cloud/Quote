@@ -47,8 +47,11 @@ test("keeps privacy, pricing, and PWA foundations in source", async () => {
   assert.match(industryPack, /研究总监/);
   assert.match(industryPack, /定性研究方法/);
   assert.match(industryPack, /焦点小组\/座谈会/);
+  assert.match(industryPack, /专家访谈/);
+  assert.match(industryPack, /专家稀缺度/);
   assert.match(pricing, /includesDepthInterview/);
   assert.match(pricing, /includesFocusGroup/);
+  assert.match(pricing, /includesExpertInterview/);
   assert.match(models, /priceBookSnapshot/);
   assert.match(models, /multiSelect/);
   assert.match(page, /成本与价格库/);

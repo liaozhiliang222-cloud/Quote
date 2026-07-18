@@ -121,6 +121,7 @@ export const researchIndustryPack: IndustryPack = {
           options: [
             { label: "深度访谈", value: "in_depth_interview" },
             { label: "焦点小组/座谈会", value: "focus_group" },
+            { label: "专家访谈", value: "expert_interview" },
           ],
         },
         { id: "interviewCount", label: "深访人数", dataType: "number", unit: "人", required: true, visibleWhen: { field: "qualitativeMethods", includes: "in_depth_interview" } },
@@ -129,6 +130,8 @@ export const researchIndustryPack: IndustryPack = {
         { id: "participantsPerSession", label: "每场参会人数", dataType: "number", unit: "人", required: true, visibleWhen: { field: "qualitativeMethods", includes: "focus_group" } },
         { id: "backupParticipantsPerSession", label: "每场备用人数", dataType: "number", unit: "人", required: false, visibleWhen: { field: "qualitativeMethods", includes: "focus_group" } },
         { id: "deliveryMode", label: "座谈会执行方式", dataType: "singleSelect", required: true, visibleWhen: { field: "qualitativeMethods", includes: "focus_group" }, options: [{ label: "线下座谈会", value: "offline" }, { label: "线上焦点小组", value: "online" }, { label: "混合执行", value: "hybrid" }] },
+        { id: "expertCount", label: "专家访谈人数", dataType: "number", unit: "人", required: true, visibleWhen: { field: "qualitativeMethods", includes: "expert_interview" } },
+        { id: "expertScarcity", label: "专家稀缺度", dataType: "singleSelect", required: true, visibleWhen: { field: "qualitativeMethods", includes: "expert_interview" }, options: [{ label: "常规行业专家", value: "standard" }, { label: "资深或细分领域专家", value: "scarce" }, { label: "高管或极稀缺专家", value: "rare" }] },
         { id: "recruitmentDifficulty", label: "定性招募难度", dataType: "singleSelect", required: true, options: [{ label: "普通大众", value: "general" }, { label: "特定品牌或行为人群", value: "specific" }, { label: "高价值或稀缺人群", value: "rare" }] },
         { id: "transcriptRequired", label: "需要录音与逐字稿", dataType: "boolean", required: false },
         ...common,
@@ -150,6 +153,8 @@ export const defaultPriceBook: PriceBookConfig = {
     { id: "moderation", name: "主持与执行", unit: "场", costUnitPriceCents: 180000, suggestedSaleUnitPriceCents: 300000, saleUnitPriceMinCents: 250000, saleUnitPriceMaxCents: 600000, applicableProjectTypes: ["in_depth_interview", "focus_group", "mixed_research"], sensitive: true },
     { id: "venue", name: "场地与设备", unit: "场", costUnitPriceCents: 250000, suggestedSaleUnitPriceCents: 350000, saleUnitPriceMinCents: 250000, saleUnitPriceMaxCents: 800000, applicableProjectTypes: ["focus_group", "mixed_research"], sensitive: true },
     { id: "transcript", name: "录音与逐字稿", unit: "场", costUnitPriceCents: 50000, suggestedSaleUnitPriceCents: 80000, saleUnitPriceMinCents: 50000, saleUnitPriceMaxCents: 150000, applicableProjectTypes: ["in_depth_interview", "focus_group", "mixed_research"], sensitive: false },
+    { id: "expert_recruit", name: "专家招募", unit: "人", costUnitPriceCents: 80000, suggestedSaleUnitPriceCents: 150000, saleUnitPriceMinCents: 100000, saleUnitPriceMaxCents: 300000, applicableProjectTypes: ["mixed_research"], sensitive: true },
+    { id: "expert_honorarium", name: "专家礼金", unit: "人", costUnitPriceCents: 150000, suggestedSaleUnitPriceCents: 150000, saleUnitPriceMinCents: 100000, saleUnitPriceMaxCents: 500000, applicableProjectTypes: ["mixed_research"], sensitive: true },
   ],
   laborRoles: [
     { id: "director", name: "研究总监", costPerDayCents: 300000, suggestedSalePerDayCents: 500000, salePerDayMinCents: 400000, salePerDayMaxCents: 800000 },

@@ -41,6 +41,7 @@ export function calculateLines(
   const selectedMethods = Array.isArray(parameters.qualitativeMethods) ? parameters.qualitativeMethods : [];
   const includesDepthInterview = type === "in_depth_interview" || (type === "mixed_research" && selectedMethods.includes("in_depth_interview"));
   const includesFocusGroup = type === "focus_group" || (type === "mixed_research" && selectedMethods.includes("focus_group"));
+  const includesExpertInterview = type === "mixed_research" && selectedMethods.includes("expert_interview");
   const lines: QuoteLine[] = [serviceLine(priceBook, "design", 1, "固定费用")];
 
   if (type === "quantitative_online" || type === "mixed_research") {
@@ -69,8 +70,16 @@ export function calculateLines(
     if (parameters.deliveryMode !== "online") lines.push(serviceLine(priceBook, "venue", sessions, `座谈会：${sessions} 场 × 场地设备`, 10000, `venue${suffix}`));
   }
 
+  if (includesExpertInterview) {
+    const count = numberValue(parameters.expertCount);
+    const scarcity = parameters.expertScarcity === "rare" ? 20000 : parameters.expertScarcity === "scarce" ? 15000 : 10000;
+    lines.push(serviceLine(priceBook, "expert_recruit", count, `专家访谈：${count} 人 × 招募单价 × 稀缺度`, scarcity, "expert_recruit"));
+    lines.push(serviceLine(priceBook, "expert_honorarium", count, `专家访谈：${count} 人 × 专家礼金`, scarcity, "expert_honorarium"));
+    lines.push(serviceLine(priceBook, "moderation", count, `专家访谈：${count} 场 × 访谈执行`, 10000, "moderation_expert"));
+  }
+
   if (parameters.transcriptRequired) {
-    const sessions = (includesDepthInterview ? numberValue(parameters.interviewCount) : 0) + (includesFocusGroup ? numberValue(parameters.sessionCount) : 0);
+    const sessions = (includesDepthInterview ? numberValue(parameters.interviewCount) : 0) + (includesFocusGroup ? numberValue(parameters.sessionCount) : 0) + (includesExpertInterview ? numberValue(parameters.expertCount) : 0);
     lines.push(serviceLine(priceBook, "transcript", sessions, `${sessions} 场 × 录音与逐字稿`));
   }
 
