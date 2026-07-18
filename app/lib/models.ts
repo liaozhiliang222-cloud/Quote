@@ -90,6 +90,31 @@ export interface QuoteLine {
   costAmountCents: number;
   saleAmountCents: number;
   customerVisible: boolean;
+  source?: "rule" | "manual";
+  costOverrideReason?: string;
+}
+
+export interface CostOverride {
+  costUnitPriceCents: number;
+  reason: string;
+}
+
+export interface ManualCostItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  costUnitPriceCents: number;
+  pricingMode: "internal_only" | "pass_through" | "fixed" | "markup";
+  saleUnitPriceCents: number;
+  markupBasisPoints: number;
+  note: string;
+}
+
+export interface ProfitAssumptions {
+  discountBasisPoints: number;
+  costOverrunBasisPoints: number;
+  riskReserveBasisPoints: number;
 }
 
 export interface QuoteProject {
@@ -106,6 +131,9 @@ export interface QuoteProject {
   industryPackVersion: number;
   priceBookVersion: number;
   priceBookSnapshot: PriceBookConfig;
+  costOverrides: Record<string, CostOverride>;
+  manualCosts: ManualCostItem[];
+  profitAssumptions: ProfitAssumptions;
   createdAt: string;
   updatedAt: string;
 }

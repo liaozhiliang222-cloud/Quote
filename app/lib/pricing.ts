@@ -1,5 +1,5 @@
 import { defaultPriceBook } from "./industry-pack";
-import type { PriceBookConfig, QuoteLine, QuoteProject, QuoteTotals, ResearchProjectTypeId } from "./models";
+import type { CostOverride, ManualCostItem, PriceBookConfig, QuoteLine, QuoteProject, QuoteTotals, ResearchProjectTypeId } from "./models";
 
 const numberValue = (value: unknown, fallback = 0) => {
   const result = Number(value);
@@ -29,6 +29,7 @@ const serviceLine = (
     costAmountCents: Math.round(quantity * item.costUnitPriceCents),
     saleAmountCents: Math.round(quantity * saleUnitPriceCents),
     customerVisible: true,
+    source: "rule",
   };
 };
 
@@ -36,6 +37,8 @@ export function calculateLines(
   type: ResearchProjectTypeId,
   parameters: QuoteProject["parameters"],
   priceBook: PriceBookConfig = defaultPriceBook,
+  costOverrides: Record<string, CostOverride> = {},
+  manualCosts: ManualCostItem[] = [],
 ): QuoteLine[] {
   const difficulty = parameters.recruitmentDifficulty === "rare" ? 18000 : parameters.recruitmentDifficulty === "specific" ? 13000 : 10000;
   const selectedMethods = Array.isArray(parameters.qualitativeMethods) ? parameters.qualitativeMethods : [];
@@ -100,10 +103,32 @@ export function calculateLines(
         costAmountCents: Math.round(days * role.costPerDayCents),
         saleAmountCents: Math.round(days * role.suggestedSalePerDayCents),
         customerVisible: true,
+        source: "rule",
       });
     }
   }
-  return lines;
+  const adjusted = lines.map((item) => {
+    const override = costOverrides[item.id];
+    if (!override) return item;
+    return { ...item, costUnitPriceCents: override.costUnitPriceCents, costAmountCents: Math.round(item.quantity * override.costUnitPriceCents), costOverrideReason: override.reason };
+  });
+  const manualLines = manualCosts.map((item): QuoteLine => {
+    const saleUnitPriceCents = item.pricingMode === "internal_only" ? 0 : item.pricingMode === "pass_through" ? item.costUnitPriceCents : item.pricingMode === "markup" ? Math.round(item.costUnitPriceCents * (10000 + item.markupBasisPoints) / 10000) : item.saleUnitPriceCents;
+    return {
+      id: item.id,
+      name: item.name,
+      detail: item.note || ({ internal_only: "仅计入内部成本", pass_through: "成本原价转嫁", fixed: "按指定单价报价", markup: `成本加价 ${(item.markupBasisPoints / 100).toFixed(0)}%` }[item.pricingMode]),
+      quantity: item.quantity,
+      unit: item.unit,
+      costUnitPriceCents: item.costUnitPriceCents,
+      saleUnitPriceCents,
+      costAmountCents: Math.round(item.quantity * item.costUnitPriceCents),
+      saleAmountCents: Math.round(item.quantity * saleUnitPriceCents),
+      customerVisible: item.pricingMode !== "internal_only",
+      source: "manual",
+    };
+  });
+  return [...adjusted, ...manualLines];
 }
 
 export function calculateTotals(project: QuoteProject): QuoteTotals {

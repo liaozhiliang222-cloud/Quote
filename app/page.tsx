@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { deleteAllProjects, getPriceBook, getProjects, savePriceBook, saveProject } from "./lib/db";
 import { defaultPriceBook, researchIndustryPack } from "./lib/industry-pack";
-import type { ParameterDefinition, PriceBookConfig, QuoteProject, ResearchProjectTypeId } from "./lib/models";
+import type { ManualCostItem, ParameterDefinition, PriceBookConfig, QuoteProject, ResearchProjectTypeId } from "./lib/models";
 import { calculateLines, calculateTotals, formatMoney, getRisks } from "./lib/pricing";
 
-type View = "dashboard" | "projects" | "quote" | "pricebook" | "privacy";
+type View = "dashboard" | "projects" | "quote" | "profit" | "pricebook" | "privacy";
 
 const reportWorkload = (depth: string): Record<string, number> => {
   if (depth === "basic") return { laborDays_director: 0.5, laborDays_senior_manager: 1, laborDays_manager: 2, laborDays_assistant: 3 };
@@ -47,10 +47,13 @@ function createProject(type: ResearchProjectTypeId, priceBook: PriceBookConfig):
     industryPackVersion: researchIndustryPack.version,
     priceBookVersion: priceBook.version,
     priceBookSnapshot: structuredClone(priceBook),
+    costOverrides: {},
+    manualCosts: [],
+    profitAssumptions: { discountBasisPoints: 1000, costOverrunBasisPoints: 1500, riskReserveBasisPoints: 500 },
     createdAt: now,
     updatedAt: now,
   };
-  project.lines = calculateLines(type, project.parameters, priceBook);
+  project.lines = calculateLines(type, project.parameters, priceBook, project.costOverrides, project.manualCosts);
   return project;
 }
 
@@ -135,6 +138,7 @@ export default function Home() {
   const [priceSavedState, setPriceSavedState] = useState("价格配置保存在此设备");
   const [savedState, setSavedState] = useState("已保存在此设备");
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
+  const [newCostDraft, setNewCostDraft] = useState<Omit<ManualCostItem, "id">>({ name: "", quantity: 1, unit: "项", costUnitPriceCents: 0, pricingMode: "internal_only", saleUnitPriceCents: 0, markupBasisPoints: 2000, note: "" });
 
   useEffect(() => {
     getProjects().then(setProjects).catch(() => setSavedState("本地存储暂不可用"));
@@ -169,6 +173,13 @@ export default function Home() {
   const typeDefinition = useMemo(() => researchIndustryPack.projectTypes.find((item) => item.id === activeProject?.projectTypeId), [activeProject?.projectTypeId]);
   const totals = activeProject ? calculateTotals(activeProject) : null;
   const risks = activeProject ? getRisks(activeProject) : [];
+  const profitAssumptions = activeProject?.profitAssumptions ?? { discountBasisPoints: 1000, costOverrunBasisPoints: 1500, riskReserveBasisPoints: 500 };
+  const reserveCents = totals ? Math.round(totals.costCents * profitAssumptions.riskReserveBasisPoints / 10000) : 0;
+  const profitScenarios = totals ? [
+    { id: "current", name: "当前方案", note: "按当前报价与预计成本", revenue: totals.preTaxCents, cost: totals.costCents + reserveCents },
+    { id: "discount", name: "客户折扣方案", note: `报价下调 ${profitAssumptions.discountBasisPoints / 100}%`, revenue: Math.round(totals.preTaxCents * (10000 - profitAssumptions.discountBasisPoints) / 10000), cost: totals.costCents + reserveCents },
+    { id: "overrun", name: "成本超支方案", note: `成本上浮 ${profitAssumptions.costOverrunBasisPoints / 100}%`, revenue: totals.preTaxCents, cost: Math.round(totals.costCents * (10000 + profitAssumptions.costOverrunBasisPoints) / 10000) + reserveCents },
+  ].map((scenario) => ({ ...scenario, profit: scenario.revenue - scenario.cost, margin: scenario.revenue ? Math.round((scenario.revenue - scenario.cost) * 10000 / scenario.revenue) : 0 })) : [];
 
   const startQuote = (type: ResearchProjectTypeId) => {
     setActiveProject(createProject(type, priceBook));
@@ -177,7 +188,9 @@ export default function Home() {
 
   const openProject = (project: QuoteProject) => {
     const snapshot = normalizePriceBook(project.priceBookSnapshot ?? structuredClone(defaultPriceBook));
-    setActiveProject({ ...project, priceBookSnapshot: snapshot, priceBookVersion: project.priceBookVersion ?? snapshot.version, lines: calculateLines(project.projectTypeId, project.parameters, snapshot) });
+    const costOverrides = project.costOverrides ?? {};
+    const manualCosts = project.manualCosts ?? [];
+    setActiveProject({ ...project, priceBookSnapshot: snapshot, priceBookVersion: project.priceBookVersion ?? snapshot.version, costOverrides, manualCosts, profitAssumptions: project.profitAssumptions ?? { discountBasisPoints: 1000, costOverrunBasisPoints: 1500, riskReserveBasisPoints: 500 }, lines: calculateLines(project.projectTypeId, project.parameters, snapshot, costOverrides, manualCosts) });
     setView("quote");
   };
 
@@ -185,9 +198,23 @@ export default function Home() {
     setActiveProject((current) => {
       if (!current) return current;
       const next = { ...current, ...patch, updatedAt: new Date().toISOString() };
-      next.lines = calculateLines(next.projectTypeId, next.parameters, next.priceBookSnapshot ?? priceBook);
+      next.costOverrides ??= {};
+      next.manualCosts ??= [];
+      next.profitAssumptions ??= { discountBasisPoints: 1000, costOverrunBasisPoints: 1500, riskReserveBasisPoints: 500 };
+      next.lines = calculateLines(next.projectTypeId, next.parameters, next.priceBookSnapshot ?? priceBook, next.costOverrides, next.manualCosts);
       return next;
     });
+  };
+
+  const updateCostOverride = (lineId: string, costUnitPriceCents: number, reason?: string) => {
+    if (!activeProject) return;
+    updateProject({ costOverrides: { ...activeProject.costOverrides, [lineId]: { costUnitPriceCents, reason: reason ?? activeProject.costOverrides[lineId]?.reason ?? "" } } });
+  };
+
+  const addManualCost = () => {
+    if (!activeProject || !newCostDraft.name.trim() || newCostDraft.costUnitPriceCents < 0) return;
+    updateProject({ manualCosts: [...activeProject.manualCosts, { ...newCostDraft, id: `manual_${crypto.randomUUID()}` }] });
+    setNewCostDraft({ name: "", quantity: 1, unit: "项", costUnitPriceCents: 0, pricingMode: "internal_only", saleUnitPriceCents: 0, markupBasisPoints: 2000, note: "" });
   };
 
   const updatePriceBook = (next: PriceBookConfig) => {
@@ -264,7 +291,7 @@ export default function Home() {
 
         {view === "quote" && activeProject && totals && typeDefinition && (
           <div className="quote-page">
-            <div className="quote-head"><button className="back" onClick={() => setView("dashboard")}>←</button><div><span>{typeDefinition.name}</span><input aria-label="项目名称" value={activeProject.name} onChange={(event) => updateProject({ name: event.target.value })} /><small><i /> {savedState}</small></div><div className="quote-actions"><button onClick={() => downloadCsv(activeProject)}>导出 Excel</button><button onClick={() => window.print()}>打印 / PDF</button></div></div>
+            <div className="quote-head"><button className="back" onClick={() => setView("dashboard")}>←</button><div><span>{typeDefinition.name}</span><input aria-label="项目名称" value={activeProject.name} onChange={(event) => updateProject({ name: event.target.value })} /><small><i /> {savedState}</small></div><div className="quote-actions"><button className="profit-button" onClick={() => setView("profit")}>利润测算</button><button onClick={() => downloadCsv(activeProject)}>导出 Excel</button><button onClick={() => window.print()}>打印 / PDF</button></div></div>
             <div className="steps"><span className="done">✓<b>项目类型</b></span><i /><span className="current">2<b>需求与报价</b></span><i /><span>3<b>风险检查</b></span><i /><span>4<b>导出</b></span></div>
             <div className="quote-layout">
               <section className="form-panel panel"><div className="panel-title"><div><span>02</span><div><h2>需求参数</h2><p>字段来自 {researchIndustryPack.name}，不同类型互不干扰</p></div></div><b>{typeDefinition.parameters.filter((field) => isParameterVisible(field, activeProject.parameters) && field.required && activeProject.parameters[field.id] !== "" && (!Array.isArray(activeProject.parameters[field.id]) || (activeProject.parameters[field.id] as string[]).length > 0)).length}/{typeDefinition.parameters.filter((field) => isParameterVisible(field, activeProject.parameters) && field.required).length} 必填项</b></div>
@@ -277,6 +304,13 @@ export default function Home() {
                     ))}</div>
                   </div>
                 )}
+                <div className="cost-section">
+                  <div className="labor-title"><div><h3>项目成本调整</h3><p>调整只影响当前项目，并保留价格库原始单价作为计算依据</p></div><span>{Object.keys(activeProject.costOverrides).length} 项已调整</span></div>
+                  <div className="override-list">{activeProject.lines.filter((line) => line.source !== "manual").map((line) => <div className="override-row" key={line.id}><div><strong>{line.name}</strong><small>价格库成本 {formatMoney(activeProject.priceBookSnapshot.items.find((item) => line.id.startsWith(item.id))?.costUnitPriceCents ?? line.costUnitPriceCents)}/{line.unit}</small></div><label><span>实际单位成本</span><div><i>¥</i><input type="number" min="0" value={line.costUnitPriceCents / 100} onChange={(event) => updateCostOverride(line.id, Math.round(Number(event.target.value) * 100))} /></div></label><label className="reason-input"><span>调整说明</span><input placeholder="如：供应商实际报价" value={activeProject.costOverrides[line.id]?.reason ?? ""} onChange={(event) => updateCostOverride(line.id, line.costUnitPriceCents, event.target.value)} /></label></div>)}</div>
+                  <div className="manual-costs"><div className="manual-heading"><div><strong>自定义成本</strong><span>差旅、翻译、供应商、设备、加急等项目专属费用</span></div></div>{activeProject.manualCosts.map((item) => <div className="manual-item" key={item.id}><div><strong>{item.name}</strong><span>{item.quantity} {item.unit} · 成本 {formatMoney(item.quantity * item.costUnitPriceCents)} · {item.pricingMode === "internal_only" ? "内部承担" : item.pricingMode === "pass_through" ? "原价转嫁" : item.pricingMode === "markup" ? `加价 ${item.markupBasisPoints / 100}%` : "指定售价"}</span></div><button onClick={() => updateProject({ manualCosts: activeProject.manualCosts.filter((current) => current.id !== item.id) })}>删除</button></div>)}
+                    <div className="manual-form"><label><span>成本名称</span><input placeholder="例如：异地差旅" value={newCostDraft.name} onChange={(event) => setNewCostDraft({ ...newCostDraft, name: event.target.value })} /></label><label><span>数量</span><input type="number" min="0" step="0.5" value={newCostDraft.quantity} onChange={(event) => setNewCostDraft({ ...newCostDraft, quantity: Number(event.target.value) })} /></label><label><span>单位</span><input value={newCostDraft.unit} onChange={(event) => setNewCostDraft({ ...newCostDraft, unit: event.target.value })} /></label><label><span>单位成本</span><div><i>¥</i><input type="number" min="0" value={newCostDraft.costUnitPriceCents / 100} onChange={(event) => setNewCostDraft({ ...newCostDraft, costUnitPriceCents: Math.round(Number(event.target.value) * 100) })} /></div></label><label><span>报价方式</span><select value={newCostDraft.pricingMode} onChange={(event) => setNewCostDraft({ ...newCostDraft, pricingMode: event.target.value as ManualCostItem["pricingMode"] })}><option value="internal_only">仅计入内部成本</option><option value="pass_through">成本原价转嫁</option><option value="fixed">指定对外单价</option><option value="markup">按成本加价</option></select></label>{newCostDraft.pricingMode === "fixed" && <label><span>对外单价</span><div><i>¥</i><input type="number" min="0" value={newCostDraft.saleUnitPriceCents / 100} onChange={(event) => setNewCostDraft({ ...newCostDraft, saleUnitPriceCents: Math.round(Number(event.target.value) * 100) })} /></div></label>}{newCostDraft.pricingMode === "markup" && <label><span>加价率</span><div><input type="number" min="0" value={newCostDraft.markupBasisPoints / 100} onChange={(event) => setNewCostDraft({ ...newCostDraft, markupBasisPoints: Math.round(Number(event.target.value) * 100) })} /><i>%</i></div></label>}<label className="manual-note"><span>备注</span><input placeholder="内部说明，可选" value={newCostDraft.note} onChange={(event) => setNewCostDraft({ ...newCostDraft, note: event.target.value })} /></label><button onClick={addManualCost}>＋ 添加成本</button></div>
+                  </div>
+                </div>
                 <div className="commercial"><h3>商业规则</h3><div><label>税率 <span><input type="number" value={activeProject.taxRateBasisPoints / 100} onChange={(event) => updateProject({ taxRateBasisPoints: Number(event.target.value) * 100 })} />%</span></label><label>目标毛利率 <span><input type="number" value={activeProject.targetMarginBasisPoints / 100} onChange={(event) => updateProject({ targetMarginBasisPoints: Number(event.target.value) * 100 })} />%</span></label><label>最低毛利率 <span><input type="number" value={activeProject.minimumMarginBasisPoints / 100} onChange={(event) => updateProject({ minimumMarginBasisPoints: Number(event.target.value) * 100 })} />%</span></label></div></div>
               </section>
               <aside className="summary-column">
@@ -285,6 +319,20 @@ export default function Home() {
                 <section className={`panel risk-card ${risks.length ? "has-risk" : ""}`}><div><span>{risks.length ? "!" : "✓"}</span><strong>{risks.length ? `${risks.length} 项待确认` : "未发现明显漏项"}</strong></div>{risks.map((risk) => <p key={risk}>• {risk}</p>)}</section>
               </aside>
             </div>
+          </div>
+        )}
+
+        {view === "profit" && activeProject && totals && (
+          <div className="page profit-page">
+            <div className="profit-head"><button className="back" onClick={() => setView("quote")}>←</button><div><span className="eyebrow">INTERNAL PROFIT ESTIMATE</span><h1>利润测算</h1><p>{activeProject.name} · 仅内部可见，不进入客户报价单或导出文件</p></div><span className="internal-badge">内部数据</span></div>
+            <section className="panel assumption-panel"><div><h2>情景参数</h2><p>调整参数即可实时查看利润敏感度，计算基于未税收入。</p></div><div className="assumption-grid"><label><span>客户折扣</span><div><input type="number" min="0" max="100" value={profitAssumptions.discountBasisPoints / 100} onChange={(event) => updateProject({ profitAssumptions: { ...profitAssumptions, discountBasisPoints: Math.round(Number(event.target.value) * 100) } })} /><b>%</b></div></label><label><span>成本超支</span><div><input type="number" min="0" value={profitAssumptions.costOverrunBasisPoints / 100} onChange={(event) => updateProject({ profitAssumptions: { ...profitAssumptions, costOverrunBasisPoints: Math.round(Number(event.target.value) * 100) } })} /><b>%</b></div></label><label><span>风险预留</span><div><input type="number" min="0" value={profitAssumptions.riskReserveBasisPoints / 100} onChange={(event) => updateProject({ profitAssumptions: { ...profitAssumptions, riskReserveBasisPoints: Math.round(Number(event.target.value) * 100) } })} /><b>%</b></div></label></div></section>
+            <div className="scenario-grid">{profitScenarios.map((scenario, index) => <section className={`scenario-card panel scenario-${index}`} key={scenario.id}><div className="scenario-title"><div><span>0{index + 1}</span><strong>{scenario.name}</strong></div><em>{scenario.note}</em></div><div className="scenario-profit"><span>预计毛利润</span><strong className={scenario.profit < 0 ? "danger" : ""}>{formatMoney(scenario.profit)}</strong><b className={scenario.margin < activeProject.minimumMarginBasisPoints ? "danger" : "good"}>{(scenario.margin / 100).toFixed(1)}%</b></div><div className="scenario-metrics"><div><span>未税收入</span><b>{formatMoney(scenario.revenue)}</b></div><div><span>预计总成本</span><b>{formatMoney(scenario.cost)}</b></div><div><span>安全毛利线</span><b>{(activeProject.minimumMarginBasisPoints / 100).toFixed(0)}%</b></div></div></section>)}</div>
+            <div className="profit-detail-grid"><section className="panel profit-breakdown"><div className="price-panel-head"><div><h2>成本构成</h2><p>系统规则、人员工时与手动成本分开核算</p></div><span>风险预留 {formatMoney(reserveCents)}</span></div>{[
+              { name: "直接执行与服务成本", value: activeProject.lines.filter((line) => line.source !== "manual" && !line.id.startsWith("labor_")).reduce((sum, line) => sum + line.costAmountCents, 0), color: "#4969f5" },
+              { name: "内部人员工时成本", value: activeProject.lines.filter((line) => line.id.startsWith("labor_")).reduce((sum, line) => sum + line.costAmountCents, 0), color: "#7d58d6" },
+              { name: "手动追加成本", value: activeProject.lines.filter((line) => line.source === "manual").reduce((sum, line) => sum + line.costAmountCents, 0), color: "#f08a41" },
+              { name: "风险预留", value: reserveCents, color: "#00a785" },
+            ].map((item) => <div className="breakdown-row" key={item.name}><i style={{ background: item.color }} /><span>{item.name}</span><div><b style={{ width: `${Math.max(2, (item.value / Math.max(1, totals.costCents + reserveCents)) * 100)}%`, background: item.color }} /></div><strong>{formatMoney(item.value)}</strong></div>)}</section><section className="panel profit-summary"><span>当前项目利润结论</span><strong>{profitScenarios[0]?.margin >= activeProject.targetMarginBasisPoints ? "利润空间健康" : profitScenarios[0]?.margin >= activeProject.minimumMarginBasisPoints ? "利润空间可接受" : "利润低于安全线"}</strong><p>当前方案已计入 {formatMoney(reserveCents)} 风险预留。客户折扣与成本超支情景独立计算，便于判断谈判底线。</p><div><span>目标毛利率</span><b>{activeProject.targetMarginBasisPoints / 100}%</b></div><div><span>最低毛利率</span><b>{activeProject.minimumMarginBasisPoints / 100}%</b></div><button onClick={() => setView("quote")}>返回调整项目成本</button></section></div>
           </div>
         )}
 
@@ -302,7 +350,7 @@ export default function Home() {
         )}
       </section>
 
-      <nav className="mobile-nav"><button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>⌂<span>首页</span></button><button className={view === "quote" ? "active" : ""} onClick={() => { setActiveProject(null); setView("quote"); }}>＋<span>报价</span></button><button className={view === "projects" ? "active" : ""} onClick={() => setView("projects")}>▤<span>项目</span></button><button className={view === "pricebook" ? "active" : ""} onClick={() => setView("pricebook")}>￥<span>价格</span></button><button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}>◇<span>我的</span></button></nav>
+      <nav className="mobile-nav"><button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>⌂<span>首页</span></button><button className={view === "quote" || view === "profit" ? "active" : ""} onClick={() => { if (!activeProject) setActiveProject(null); setView("quote"); }}>＋<span>报价</span></button><button className={view === "projects" ? "active" : ""} onClick={() => setView("projects")}>▤<span>项目</span></button><button className={view === "pricebook" ? "active" : ""} onClick={() => setView("pricebook")}>￥<span>价格</span></button><button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}>◇<span>我的</span></button></nav>
     </main>
   );
 }
