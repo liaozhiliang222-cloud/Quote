@@ -49,8 +49,26 @@ export interface PriceBookItem {
   unit: string;
   costUnitPriceCents: number;
   suggestedSaleUnitPriceCents: number;
+  saleUnitPriceMinCents: number;
+  saleUnitPriceMaxCents: number;
   applicableProjectTypes: ResearchProjectTypeId[];
   sensitive: boolean;
+}
+
+export interface LaborRoleRate {
+  id: "director" | "senior_manager" | "manager" | "assistant";
+  name: string;
+  costPerDayCents: number;
+  suggestedSalePerDayCents: number;
+  salePerDayMinCents: number;
+  salePerDayMaxCents: number;
+}
+
+export interface PriceBookConfig {
+  version: number;
+  updatedAt: string;
+  items: PriceBookItem[];
+  laborRoles: LaborRoleRate[];
 }
 
 export interface QuoteLine {
@@ -61,6 +79,8 @@ export interface QuoteLine {
   unit: string;
   costUnitPriceCents: number;
   saleUnitPriceCents: number;
+  saleUnitPriceMinCents?: number;
+  saleUnitPriceMaxCents?: number;
   costAmountCents: number;
   saleAmountCents: number;
   customerVisible: boolean;
@@ -79,6 +99,7 @@ export interface QuoteProject {
   lines: QuoteLine[];
   industryPackVersion: number;
   priceBookVersion: number;
+  priceBookSnapshot: PriceBookConfig;
   createdAt: string;
   updatedAt: string;
 }

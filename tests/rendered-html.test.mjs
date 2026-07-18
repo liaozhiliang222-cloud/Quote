@@ -25,11 +25,13 @@ test("server-renders the research quote application shell", async () => {
 });
 
 test("keeps privacy, pricing, and PWA foundations in source", async () => {
-  const [page, layout, pricing, database, manifest, serviceWorker] = await Promise.all([
+  const [page, layout, pricing, database, industryPack, models, manifest, serviceWorker] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/pricing.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/db.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/industry-pack.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/models.ts", import.meta.url), "utf8"),
     readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
   ]);
@@ -38,7 +40,13 @@ test("keeps privacy, pricing, and PWA foundations in source", async () => {
   assert.match(database, /indexedDB\.open/);
   assert.doesNotMatch(database, /localStorage|sessionStorage/);
   assert.match(pricing, /minimumSafePriceCents/);
+  assert.match(pricing, /laborDays_/);
+  assert.match(pricing, /reportDepth !== "none"/);
   assert.doesNotMatch(pricing, /eval\s*\(/);
+  assert.match(industryPack, /无需报告/);
+  assert.match(industryPack, /研究总监/);
+  assert.match(models, /priceBookSnapshot/);
+  assert.match(page, /成本与价格库/);
   assert.equal(JSON.parse(manifest).display, "standalone");
   assert.match(serviceWorker, /caches\.open/);
 });

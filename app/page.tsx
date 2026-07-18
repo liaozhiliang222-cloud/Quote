@@ -1,21 +1,28 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { deleteAllProjects, getProjects, saveProject } from "./lib/db";
-import { researchIndustryPack } from "./lib/industry-pack";
-import type { ParameterDefinition, QuoteProject, ResearchProjectTypeId } from "./lib/models";
+import { deleteAllProjects, getPriceBook, getProjects, savePriceBook, saveProject } from "./lib/db";
+import { defaultPriceBook, researchIndustryPack } from "./lib/industry-pack";
+import type { ParameterDefinition, PriceBookConfig, QuoteProject, ResearchProjectTypeId } from "./lib/models";
 import { calculateLines, calculateTotals, formatMoney, getRisks } from "./lib/pricing";
 
-type View = "dashboard" | "projects" | "quote" | "privacy";
+type View = "dashboard" | "projects" | "quote" | "pricebook" | "privacy";
 
-const defaults: Record<ResearchProjectTypeId, QuoteProject["parameters"]> = {
-  quantitative_online: { sampleSize: 1000, incidenceRate: 50, questionnaireMinutes: 12, targetAudience: "过去 3 个月购买过品类产品的消费者", cityCount: 3, reportDepth: "standard" },
-  in_depth_interview: { interviewCount: 12, sessionDurationMinutes: 60, recruitmentDifficulty: "specific", transcriptRequired: true, targetAudience: "核心用户与流失用户", cityCount: 2, reportDepth: "standard" },
-  focus_group: { sessionCount: 4, participantsPerSession: 8, backupParticipantsPerSession: 2, sessionDurationMinutes: 120, recruitmentDifficulty: "specific", deliveryMode: "offline", transcriptRequired: true, targetAudience: "目标品牌消费者", cityCount: 2, reportDepth: "deep" },
-  mixed_research: { sampleSize: 800, interviewCount: 10, targetAudience: "目标品类消费者", cityCount: 3, reportDepth: "deep" },
+const reportWorkload = (depth: string): Record<string, number> => {
+  if (depth === "basic") return { laborDays_director: 0.5, laborDays_senior_manager: 1, laborDays_manager: 2, laborDays_assistant: 3 };
+  if (depth === "deep") return { laborDays_director: 2, laborDays_senior_manager: 4, laborDays_manager: 7, laborDays_assistant: 10 };
+  if (depth === "none") return { laborDays_director: 0, laborDays_senior_manager: 0, laborDays_manager: 0, laborDays_assistant: 0 };
+  return { laborDays_director: 1, laborDays_senior_manager: 2, laborDays_manager: 4, laborDays_assistant: 6 };
 };
 
-function createProject(type: ResearchProjectTypeId): QuoteProject {
+const defaults: Record<ResearchProjectTypeId, QuoteProject["parameters"]> = {
+  quantitative_online: { sampleSize: 1000, incidenceRate: 50, questionnaireMinutes: 12, targetAudience: "过去 3 个月购买过品类产品的消费者", cityCount: 3, reportDepth: "standard", ...reportWorkload("standard") },
+  in_depth_interview: { interviewCount: 12, sessionDurationMinutes: 60, recruitmentDifficulty: "specific", transcriptRequired: true, targetAudience: "核心用户与流失用户", cityCount: 2, reportDepth: "standard", ...reportWorkload("standard") },
+  focus_group: { sessionCount: 4, participantsPerSession: 8, backupParticipantsPerSession: 2, sessionDurationMinutes: 120, recruitmentDifficulty: "specific", deliveryMode: "offline", transcriptRequired: true, targetAudience: "目标品牌消费者", cityCount: 2, reportDepth: "deep", ...reportWorkload("deep") },
+  mixed_research: { sampleSize: 800, interviewCount: 10, targetAudience: "目标品类消费者", cityCount: 3, reportDepth: "deep", ...reportWorkload("deep") },
+};
+
+function createProject(type: ResearchProjectTypeId, priceBook: PriceBookConfig): QuoteProject {
   const now = new Date().toISOString();
   const typeName = researchIndustryPack.projectTypes.find((item) => item.id === type)?.name ?? "调研项目";
   const project: QuoteProject = {
@@ -30,11 +37,12 @@ function createProject(type: ResearchProjectTypeId): QuoteProject {
     minimumMarginBasisPoints: 2500,
     lines: [],
     industryPackVersion: researchIndustryPack.version,
-    priceBookVersion: 1,
+    priceBookVersion: priceBook.version,
+    priceBookSnapshot: structuredClone(priceBook),
     createdAt: now,
     updatedAt: now,
   };
-  project.lines = calculateLines(type, project.parameters);
+  project.lines = calculateLines(type, project.parameters, priceBook);
   return project;
 }
 
@@ -94,11 +102,14 @@ export default function Home() {
   const [view, setView] = useState<View>("dashboard");
   const [projects, setProjects] = useState<QuoteProject[]>([]);
   const [activeProject, setActiveProject] = useState<QuoteProject | null>(null);
+  const [priceBook, setPriceBook] = useState<PriceBookConfig>(() => structuredClone(defaultPriceBook));
+  const [priceSavedState, setPriceSavedState] = useState("价格配置保存在此设备");
   const [savedState, setSavedState] = useState("已保存在此设备");
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
 
   useEffect(() => {
     getProjects().then(setProjects).catch(() => setSavedState("本地存储暂不可用"));
+    getPriceBook().then((stored) => { if (stored) setPriceBook(stored); }).catch(() => setPriceSavedState("价格库读取失败"));
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");
     const handler = (event: Event) => { event.preventDefault(); setInstallPrompt(event); };
     window.addEventListener("beforeinstallprompt", handler);
@@ -116,17 +127,28 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [activeProject]);
 
+  useEffect(() => {
+    if (priceBook.updatedAt === defaultPriceBook.updatedAt) return;
+    setPriceSavedState("正在保存价格配置…");
+    const timer = window.setTimeout(async () => {
+      await savePriceBook(priceBook);
+      setPriceSavedState("价格配置已保存在此设备");
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [priceBook]);
+
   const typeDefinition = useMemo(() => researchIndustryPack.projectTypes.find((item) => item.id === activeProject?.projectTypeId), [activeProject?.projectTypeId]);
   const totals = activeProject ? calculateTotals(activeProject) : null;
   const risks = activeProject ? getRisks(activeProject) : [];
 
   const startQuote = (type: ResearchProjectTypeId) => {
-    setActiveProject(createProject(type));
+    setActiveProject(createProject(type, priceBook));
     setView("quote");
   };
 
   const openProject = (project: QuoteProject) => {
-    setActiveProject(project);
+    const snapshot = project.priceBookSnapshot ?? structuredClone(defaultPriceBook);
+    setActiveProject({ ...project, priceBookSnapshot: snapshot, priceBookVersion: project.priceBookVersion ?? snapshot.version, lines: calculateLines(project.projectTypeId, project.parameters, snapshot) });
     setView("quote");
   };
 
@@ -134,9 +156,13 @@ export default function Home() {
     setActiveProject((current) => {
       if (!current) return current;
       const next = { ...current, ...patch, updatedAt: new Date().toISOString() };
-      next.lines = calculateLines(next.projectTypeId, next.parameters);
+      next.lines = calculateLines(next.projectTypeId, next.parameters, next.priceBookSnapshot ?? priceBook);
       return next;
     });
+  };
+
+  const updatePriceBook = (next: PriceBookConfig) => {
+    setPriceBook({ ...next, version: Math.max(1, next.version), updatedAt: new Date().toISOString() });
   };
 
   return (
@@ -148,10 +174,11 @@ export default function Home() {
           <button className={view === "projects" ? "active" : ""} onClick={() => setView("projects")}><span>▤</span> 报价项目 <b>{projects.length}</b></button>
           <button onClick={() => { setActiveProject(null); setView("quote"); }} className={view === "quote" ? "active" : ""}><span>＋</span> 新建报价</button>
           <div className="nav-label">数据管理</div>
+          <button onClick={() => setView("pricebook")} className={view === "pricebook" ? "active" : ""}><span>￥</span> 成本与价格库</button>
           <button onClick={() => setView("privacy")} className={view === "privacy" ? "active" : ""}><span>◇</span> 数据与隐私</button>
         </nav>
         <div className="privacy-card"><div><i>✓</i><strong>本地保护已开启</strong></div><p>项目与价格数据仅保存在此设备，不会自动上传。</p><button onClick={() => setView("privacy")}>查看数据状态 →</button></div>
-        <div className="sidebar-foot"><span>行业包 v{researchIndustryPack.version}.0</span><i /> <span>价格库 v1.0</span></div>
+        <div className="sidebar-foot"><span>行业包 v{researchIndustryPack.version}.0</span><i /> <span>价格库 v{priceBook.version}.0</span></div>
       </aside>
 
       <section className="workspace">
@@ -212,15 +239,32 @@ export default function Home() {
             <div className="steps"><span className="done">✓<b>项目类型</b></span><i /><span className="current">2<b>需求与报价</b></span><i /><span>3<b>风险检查</b></span><i /><span>4<b>导出</b></span></div>
             <div className="quote-layout">
               <section className="form-panel panel"><div className="panel-title"><div><span>02</span><div><h2>需求参数</h2><p>字段来自 {researchIndustryPack.name}，不同类型互不干扰</p></div></div><b>{typeDefinition.parameters.filter((field) => field.required && activeProject.parameters[field.id] !== "").length}/{typeDefinition.parameters.filter((field) => field.required).length} 必填项</b></div>
-                <div className="form-grid">{typeDefinition.parameters.map((definition) => <Field key={definition.id} definition={definition} value={activeProject.parameters[definition.id]} onChange={(value) => updateProject({ parameters: { ...activeProject.parameters, [definition.id]: value } })} />)}</div>
+                <div className="form-grid">{typeDefinition.parameters.map((definition) => <Field key={definition.id} definition={definition} value={activeProject.parameters[definition.id]} onChange={(value) => updateProject({ parameters: { ...activeProject.parameters, [definition.id]: value, ...(definition.id === "reportDepth" ? reportWorkload(String(value)) : {}) } })} />)}</div>
+                {activeProject.parameters.reportDepth !== "none" && (
+                  <div className="labor-section">
+                    <div className="labor-title"><div><h3>报告投入人天</h3><p>按实际项目团队配置，各职级人天将分别计入成本与报价</p></div><button onClick={() => setView("pricebook")}>配置人天单价 →</button></div>
+                    <div className="labor-grid">{activeProject.priceBookSnapshot.laborRoles.map((role) => (
+                      <label key={role.id}><span>{role.name}</span><small>成本 {formatMoney(role.costPerDayCents)} · 建议 {formatMoney(role.salePerDayMinCents)}–{formatMoney(role.salePerDayMaxCents)}/天</small><div><input type="number" min="0" step="0.5" value={Number(activeProject.parameters[`laborDays_${role.id}`] ?? 0)} onChange={(event) => updateProject({ parameters: { ...activeProject.parameters, [`laborDays_${role.id}`]: Number(event.target.value) } })} /><b>人天</b></div></label>
+                    ))}</div>
+                  </div>
+                )}
                 <div className="commercial"><h3>商业规则</h3><div><label>税率 <span><input type="number" value={activeProject.taxRateBasisPoints / 100} onChange={(event) => updateProject({ taxRateBasisPoints: Number(event.target.value) * 100 })} />%</span></label><label>目标毛利率 <span><input type="number" value={activeProject.targetMarginBasisPoints / 100} onChange={(event) => updateProject({ targetMarginBasisPoints: Number(event.target.value) * 100 })} />%</span></label><label>最低毛利率 <span><input type="number" value={activeProject.minimumMarginBasisPoints / 100} onChange={(event) => updateProject({ minimumMarginBasisPoints: Number(event.target.value) * 100 })} />%</span></label></div></div>
               </section>
               <aside className="summary-column">
                 <section className="panel total-card"><div className="total-label"><span>含税报价</span><b>实时测算</b></div><strong>{formatMoney(totals.totalCents)}</strong><div className="metrics"><div><span>执行成本</span><b>{formatMoney(totals.costCents)}</b></div><div><span>毛利率</span><b className={totals.marginBasisPoints < activeProject.minimumMarginBasisPoints ? "danger" : "good"}>{(totals.marginBasisPoints / 100).toFixed(1)}%</b></div><div><span>最低安全价</span><b>{formatMoney(totals.minimumSafePriceCents)}</b></div></div></section>
-                <section className="panel detail-card"><div className="section-heading"><div><h2>报价明细</h2><p>{activeProject.lines.length} 项规则计算</p></div><span>可解释</span></div>{activeProject.lines.map((item) => <div className="line-item" key={item.id}><div><strong>{item.name}</strong><span>{item.detail}</span></div><b>{formatMoney(item.saleAmountCents)}</b></div>)}<div className="subtotal"><span>未税报价</span><b>{formatMoney(totals.preTaxCents)}</b></div></section>
+                <section className="panel detail-card"><div className="section-heading"><div><h2>报价明细</h2><p>{activeProject.lines.length} 项规则计算</p></div><span>可解释</span></div>{activeProject.lines.map((item) => <div className="line-item" key={item.id}><div><strong>{item.name}</strong><span>{item.detail}</span>{item.saleUnitPriceMinCents !== undefined && <em>单价区间 {formatMoney(item.saleUnitPriceMinCents)}–{formatMoney(item.saleUnitPriceMaxCents ?? item.saleUnitPriceMinCents)}/{item.unit}</em>}</div><b>{formatMoney(item.saleAmountCents)}</b></div>)}<div className="subtotal"><span>未税报价</span><b>{formatMoney(totals.preTaxCents)}</b></div></section>
                 <section className={`panel risk-card ${risks.length ? "has-risk" : ""}`}><div><span>{risks.length ? "!" : "✓"}</span><strong>{risks.length ? `${risks.length} 项待确认` : "未发现明显漏项"}</strong></div>{risks.map((risk) => <p key={risk}>• {risk}</p>)}</section>
               </aside>
             </div>
+          </div>
+        )}
+
+        {view === "pricebook" && (
+          <div className="page pricebook-page">
+            <div className="hero-row compact"><div><span className="eyebrow">LOCAL PRICE BOOK</span><h1>成本与价格库</h1><p>统一维护单项成本、建议售价和价格区间；历史项目保留创建时的价格快照。</p></div><button className="primary" onClick={() => updatePriceBook({ ...priceBook, version: priceBook.version + 1 })}>发布为 v{priceBook.version + 1}.0</button></div>
+            <div className="pricebook-notice"><span>✓</span><div><strong>{priceSavedState}</strong><p>修改会用于之后新建的报价，不会回写既有项目金额。</p></div><b>当前 v{priceBook.version}.0</b></div>
+            <section className="panel price-panel"><div className="price-panel-head"><div><h2>服务项目单价</h2><p>每一项报价均由数量 × 当前单价计算，区间用于商务判断和异常提醒。</p></div><span>{priceBook.items.length} 个价格项</span></div><div className="price-table"><div className="price-row price-header"><span>价格项</span><span>单位</span><span>内部成本</span><span>建议下限</span><span>默认售价</span><span>建议上限</span></div>{priceBook.items.map((item) => <div className="price-row" key={item.id}><div><strong>{item.name}</strong><small>{item.sensitive ? "内部敏感价格" : "标准服务价格"}</small></div><span>{item.unit}</span>{(["costUnitPriceCents", "saleUnitPriceMinCents", "suggestedSaleUnitPriceCents", "saleUnitPriceMaxCents"] as const).map((key) => <label key={key}><i>¥</i><input aria-label={`${item.name}${key}`} type="number" min="0" step="10" value={item[key] / 100} onChange={(event) => updatePriceBook({ ...priceBook, items: priceBook.items.map((current) => current.id === item.id ? { ...current, [key]: Math.round(Number(event.target.value) * 100) } : current) })} /></label>)}</div>)}</div></section>
+            <section className="panel price-panel"><div className="price-panel-head"><div><h2>研究人员人天成本</h2><p>报告报价按各职级实际投入人天分别计算，支持 0.5 人天精度。</p></div><span>{priceBook.laborRoles.length} 个职级</span></div><div className="price-table labor-price-table"><div className="price-row price-header"><span>研究职级</span><span>计价单位</span><span>内部成本</span><span>建议下限</span><span>默认售价</span><span>建议上限</span></div>{priceBook.laborRoles.map((role) => <div className="price-row" key={role.id}><div><strong>{role.name}</strong><small>报告分析与撰写</small></div><span>人天</span>{(["costPerDayCents", "salePerDayMinCents", "suggestedSalePerDayCents", "salePerDayMaxCents"] as const).map((key) => <label key={key}><i>¥</i><input aria-label={`${role.name}${key}`} type="number" min="0" step="100" value={role[key] / 100} onChange={(event) => updatePriceBook({ ...priceBook, laborRoles: priceBook.laborRoles.map((current) => current.id === role.id ? { ...current, [key]: Math.round(Number(event.target.value) * 100) } : current) })} /></label>)}</div>)}</div></section>
           </div>
         )}
 
@@ -229,7 +273,7 @@ export default function Home() {
         )}
       </section>
 
-      <nav className="mobile-nav"><button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>⌂<span>首页</span></button><button className={view === "quote" ? "active" : ""} onClick={() => { setActiveProject(null); setView("quote"); }}>＋<span>报价</span></button><button className={view === "projects" ? "active" : ""} onClick={() => setView("projects")}>▤<span>项目</span></button><button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}>◇<span>我的</span></button></nav>
+      <nav className="mobile-nav"><button className={view === "dashboard" ? "active" : ""} onClick={() => setView("dashboard")}>⌂<span>首页</span></button><button className={view === "quote" ? "active" : ""} onClick={() => { setActiveProject(null); setView("quote"); }}>＋<span>报价</span></button><button className={view === "projects" ? "active" : ""} onClick={() => setView("projects")}>▤<span>项目</span></button><button className={view === "pricebook" ? "active" : ""} onClick={() => setView("pricebook")}>￥<span>价格</span></button><button className={view === "privacy" ? "active" : ""} onClick={() => setView("privacy")}>◇<span>我的</span></button></nav>
     </main>
   );
 }

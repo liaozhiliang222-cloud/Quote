@@ -1,4 +1,4 @@
-import type { IndustryPack, ParameterDefinition, PriceBookItem } from "./models";
+import type { IndustryPack, ParameterDefinition, PriceBookConfig } from "./models";
 
 const common: ParameterDefinition[] = [
   { id: "targetAudience", label: "目标人群", dataType: "text", required: true },
@@ -9,6 +9,7 @@ const common: ParameterDefinition[] = [
     dataType: "singleSelect",
     required: true,
     options: [
+      { label: "无需报告", value: "none" },
       { label: "基础版", value: "basic" },
       { label: "标准版", value: "standard" },
       { label: "深度版", value: "deep" },
@@ -118,13 +119,24 @@ export const researchIndustryPack: IndustryPack = {
   ],
 };
 
-export const defaultPriceBook: PriceBookItem[] = [
-  { id: "design", name: "研究设计", unit: "项", costUnitPriceCents: 300000, suggestedSaleUnitPriceCents: 500000, applicableProjectTypes: ["quantitative_online", "in_depth_interview", "focus_group", "mixed_research"], sensitive: false },
-  { id: "sample", name: "样本执行", unit: "份", costUnitPriceCents: 1800, suggestedSaleUnitPriceCents: 3000, applicableProjectTypes: ["quantitative_online", "mixed_research"], sensitive: true },
-  { id: "recruit", name: "受访者招募", unit: "人", costUnitPriceCents: 22000, suggestedSaleUnitPriceCents: 35000, applicableProjectTypes: ["in_depth_interview", "focus_group", "mixed_research"], sensitive: true },
-  { id: "incentive", name: "用户礼金", unit: "人", costUnitPriceCents: 30000, suggestedSaleUnitPriceCents: 30000, applicableProjectTypes: ["in_depth_interview", "focus_group", "mixed_research"], sensitive: true },
-  { id: "moderation", name: "主持与执行", unit: "场", costUnitPriceCents: 180000, suggestedSaleUnitPriceCents: 300000, applicableProjectTypes: ["in_depth_interview", "focus_group"], sensitive: true },
-  { id: "venue", name: "场地与设备", unit: "场", costUnitPriceCents: 250000, suggestedSaleUnitPriceCents: 350000, applicableProjectTypes: ["focus_group"], sensitive: true },
-  { id: "transcript", name: "录音与逐字稿", unit: "场", costUnitPriceCents: 50000, suggestedSaleUnitPriceCents: 80000, applicableProjectTypes: ["in_depth_interview", "focus_group"], sensitive: false },
-  { id: "analysis", name: "分析与报告", unit: "项", costUnitPriceCents: 800000, suggestedSaleUnitPriceCents: 1400000, applicableProjectTypes: ["quantitative_online", "in_depth_interview", "focus_group", "mixed_research"], sensitive: false },
-];
+const allTypes = ["quantitative_online", "in_depth_interview", "focus_group", "mixed_research"] as const;
+
+export const defaultPriceBook: PriceBookConfig = {
+  version: 1,
+  updatedAt: "2026-07-18T00:00:00.000Z",
+  items: [
+    { id: "design", name: "研究设计", unit: "项", costUnitPriceCents: 300000, suggestedSaleUnitPriceCents: 500000, saleUnitPriceMinCents: 400000, saleUnitPriceMaxCents: 800000, applicableProjectTypes: [...allTypes], sensitive: false },
+    { id: "sample", name: "样本执行", unit: "份", costUnitPriceCents: 1800, suggestedSaleUnitPriceCents: 3000, saleUnitPriceMinCents: 2200, saleUnitPriceMaxCents: 5000, applicableProjectTypes: ["quantitative_online", "mixed_research"], sensitive: true },
+    { id: "recruit", name: "受访者招募", unit: "人", costUnitPriceCents: 22000, suggestedSaleUnitPriceCents: 35000, saleUnitPriceMinCents: 28000, saleUnitPriceMaxCents: 65000, applicableProjectTypes: ["in_depth_interview", "focus_group", "mixed_research"], sensitive: true },
+    { id: "incentive", name: "用户礼金", unit: "人", costUnitPriceCents: 30000, suggestedSaleUnitPriceCents: 30000, saleUnitPriceMinCents: 20000, saleUnitPriceMaxCents: 80000, applicableProjectTypes: ["in_depth_interview", "focus_group", "mixed_research"], sensitive: true },
+    { id: "moderation", name: "主持与执行", unit: "场", costUnitPriceCents: 180000, suggestedSaleUnitPriceCents: 300000, saleUnitPriceMinCents: 250000, saleUnitPriceMaxCents: 600000, applicableProjectTypes: ["in_depth_interview", "focus_group"], sensitive: true },
+    { id: "venue", name: "场地与设备", unit: "场", costUnitPriceCents: 250000, suggestedSaleUnitPriceCents: 350000, saleUnitPriceMinCents: 250000, saleUnitPriceMaxCents: 800000, applicableProjectTypes: ["focus_group"], sensitive: true },
+    { id: "transcript", name: "录音与逐字稿", unit: "场", costUnitPriceCents: 50000, suggestedSaleUnitPriceCents: 80000, saleUnitPriceMinCents: 50000, saleUnitPriceMaxCents: 150000, applicableProjectTypes: ["in_depth_interview", "focus_group"], sensitive: false },
+  ],
+  laborRoles: [
+    { id: "director", name: "研究总监", costPerDayCents: 300000, suggestedSalePerDayCents: 500000, salePerDayMinCents: 400000, salePerDayMaxCents: 800000 },
+    { id: "senior_manager", name: "高级研究经理", costPerDayCents: 220000, suggestedSalePerDayCents: 360000, salePerDayMinCents: 300000, salePerDayMaxCents: 550000 },
+    { id: "manager", name: "研究经理", costPerDayCents: 160000, suggestedSalePerDayCents: 260000, salePerDayMinCents: 220000, salePerDayMaxCents: 400000 },
+    { id: "assistant", name: "助理经理及以下", costPerDayCents: 90000, suggestedSalePerDayCents: 150000, salePerDayMinCents: 120000, salePerDayMaxCents: 250000 },
+  ],
+};
