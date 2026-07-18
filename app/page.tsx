@@ -19,7 +19,7 @@ const defaults: Record<ResearchProjectTypeId, QuoteProject["parameters"]> = {
   quantitative_online: { sampleSize: 1000, incidenceRate: 50, questionnaireMinutes: 12, targetAudience: "过去 3 个月购买过品类产品的消费者", cityCount: 3, reportDepth: "standard", ...reportWorkload("standard") },
   in_depth_interview: { interviewCount: 12, sessionDurationMinutes: 60, recruitmentDifficulty: "specific", transcriptRequired: true, targetAudience: "核心用户与流失用户", cityCount: 2, reportDepth: "standard", ...reportWorkload("standard") },
   focus_group: { sessionCount: 4, participantsPerSession: 8, backupParticipantsPerSession: 2, sessionDurationMinutes: 120, recruitmentDifficulty: "specific", deliveryMode: "offline", transcriptRequired: true, targetAudience: "目标品牌消费者", cityCount: 2, reportDepth: "deep", ...reportWorkload("deep") },
-  mixed_research: { sampleSize: 800, interviewCount: 10, targetAudience: "目标品类消费者", cityCount: 3, reportDepth: "deep", ...reportWorkload("deep") },
+  mixed_research: { sampleSize: 800, qualitativeMethods: ["in_depth_interview", "focus_group"], interviewCount: 10, sessionDurationMinutes: 60, sessionCount: 4, participantsPerSession: 8, backupParticipantsPerSession: 2, deliveryMode: "offline", recruitmentDifficulty: "specific", transcriptRequired: true, targetAudience: "目标品类消费者", cityCount: 3, reportDepth: "deep", ...reportWorkload("deep") },
 };
 
 function createProject(type: ResearchProjectTypeId, priceBook: PriceBookConfig): QuoteProject {
@@ -64,7 +64,15 @@ function downloadCsv(project: QuoteProject) {
   URL.revokeObjectURL(link.href);
 }
 
-function Field({ definition, value, onChange }: { definition: ParameterDefinition; value: unknown; onChange: (value: string | number | boolean) => void }) {
+function isParameterVisible(definition: ParameterDefinition, parameters: QuoteProject["parameters"]): boolean {
+  if (!definition.visibleWhen) return true;
+  const current = parameters[definition.visibleWhen.field];
+  if (definition.visibleWhen.includes) return Array.isArray(current) && current.includes(definition.visibleWhen.includes);
+  if (definition.visibleWhen.equals !== undefined) return current === definition.visibleWhen.equals;
+  return true;
+}
+
+function Field({ definition, value, onChange }: { definition: ParameterDefinition; value: unknown; onChange: (value: string | number | boolean | string[]) => void }) {
   if (definition.dataType === "boolean") {
     return (
       <label className="switch-field">
@@ -72,6 +80,19 @@ function Field({ definition, value, onChange }: { definition: ParameterDefinitio
         <input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
         <i aria-hidden="true" />
       </label>
+    );
+  }
+  if (definition.dataType === "multiSelect") {
+    const selected = Array.isArray(value) ? value.map(String) : [];
+    return (
+      <fieldset className="multi-field">
+        <legend>{definition.label}{definition.required && <em>*</em>}</legend>
+        {definition.description && <small>{definition.description}</small>}
+        <div>{definition.options?.map((option) => {
+          const checked = selected.includes(option.value);
+          return <label className={checked ? "selected" : ""} key={option.value}><input type="checkbox" checked={checked} onChange={() => onChange(checked ? selected.filter((item) => item !== option.value) : [...selected, option.value])} /><i>{checked ? "✓" : ""}</i><span>{option.label}</span></label>;
+        })}</div>
+      </fieldset>
     );
   }
   return (
@@ -238,8 +259,8 @@ export default function Home() {
             <div className="quote-head"><button className="back" onClick={() => setView("dashboard")}>←</button><div><span>{typeDefinition.name}</span><input aria-label="项目名称" value={activeProject.name} onChange={(event) => updateProject({ name: event.target.value })} /><small><i /> {savedState}</small></div><div className="quote-actions"><button onClick={() => downloadCsv(activeProject)}>导出 Excel</button><button onClick={() => window.print()}>打印 / PDF</button></div></div>
             <div className="steps"><span className="done">✓<b>项目类型</b></span><i /><span className="current">2<b>需求与报价</b></span><i /><span>3<b>风险检查</b></span><i /><span>4<b>导出</b></span></div>
             <div className="quote-layout">
-              <section className="form-panel panel"><div className="panel-title"><div><span>02</span><div><h2>需求参数</h2><p>字段来自 {researchIndustryPack.name}，不同类型互不干扰</p></div></div><b>{typeDefinition.parameters.filter((field) => field.required && activeProject.parameters[field.id] !== "").length}/{typeDefinition.parameters.filter((field) => field.required).length} 必填项</b></div>
-                <div className="form-grid">{typeDefinition.parameters.map((definition) => <Field key={definition.id} definition={definition} value={activeProject.parameters[definition.id]} onChange={(value) => updateProject({ parameters: { ...activeProject.parameters, [definition.id]: value, ...(definition.id === "reportDepth" ? reportWorkload(String(value)) : {}) } })} />)}</div>
+              <section className="form-panel panel"><div className="panel-title"><div><span>02</span><div><h2>需求参数</h2><p>字段来自 {researchIndustryPack.name}，不同类型互不干扰</p></div></div><b>{typeDefinition.parameters.filter((field) => isParameterVisible(field, activeProject.parameters) && field.required && activeProject.parameters[field.id] !== "" && (!Array.isArray(activeProject.parameters[field.id]) || (activeProject.parameters[field.id] as string[]).length > 0)).length}/{typeDefinition.parameters.filter((field) => isParameterVisible(field, activeProject.parameters) && field.required).length} 必填项</b></div>
+                <div className="form-grid">{typeDefinition.parameters.filter((definition) => isParameterVisible(definition, activeProject.parameters)).map((definition) => <Field key={definition.id} definition={definition} value={activeProject.parameters[definition.id]} onChange={(value) => updateProject({ parameters: { ...activeProject.parameters, [definition.id]: value, ...(definition.id === "reportDepth" ? reportWorkload(String(value)) : {}) } })} />)}</div>
                 {activeProject.parameters.reportDepth !== "none" && (
                   <div className="labor-section">
                     <div className="labor-title"><div><h3>报告投入人天</h3><p>按实际项目团队配置，各职级人天将分别计入成本与报价</p></div><button onClick={() => setView("pricebook")}>配置人天单价 →</button></div>

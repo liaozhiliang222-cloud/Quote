@@ -12,11 +12,12 @@ const serviceLine = (
   quantity: number,
   detail: string,
   saleFactorBasisPoints = 10000,
+  lineId?: string,
 ): QuoteLine => {
   const item = priceBook.items.find((entry) => entry.id === id)!;
   const saleUnitPriceCents = Math.round((item.suggestedSaleUnitPriceCents * saleFactorBasisPoints) / 10000);
   return {
-    id,
+    id: lineId ?? id,
     name: item.name,
     detail,
     quantity,
@@ -37,6 +38,9 @@ export function calculateLines(
   priceBook: PriceBookConfig = defaultPriceBook,
 ): QuoteLine[] {
   const difficulty = parameters.recruitmentDifficulty === "rare" ? 18000 : parameters.recruitmentDifficulty === "specific" ? 13000 : 10000;
+  const selectedMethods = Array.isArray(parameters.qualitativeMethods) ? parameters.qualitativeMethods : [];
+  const includesDepthInterview = type === "in_depth_interview" || (type === "mixed_research" && selectedMethods.includes("in_depth_interview"));
+  const includesFocusGroup = type === "focus_group" || (type === "mixed_research" && selectedMethods.includes("focus_group"));
   const lines: QuoteLine[] = [serviceLine(priceBook, "design", 1, "固定费用")];
 
   if (type === "quantitative_online" || type === "mixed_research") {
@@ -46,25 +50,27 @@ export function calculateLines(
     lines.push(serviceLine(priceBook, "sample", samples, `${samples} 份 × 单价 × 筛选难度系数`, sampleFactor));
   }
 
-  if (type === "in_depth_interview" || type === "mixed_research") {
+  if (includesDepthInterview) {
     const count = numberValue(parameters.interviewCount);
-    lines.push(serviceLine(priceBook, "recruit", count, `${count} 人 × 单价 × 招募难度`, difficulty));
-    lines.push(serviceLine(priceBook, "incentive", count, `${count} 人 × 礼金`));
-    lines.push(serviceLine(priceBook, "moderation", count, `${count} 场 × 主持执行`));
+    const suffix = type === "mixed_research" ? "_interview" : "";
+    lines.push(serviceLine(priceBook, "recruit", count, `深访：${count} 人 × 单价 × 招募难度`, difficulty, `recruit${suffix}`));
+    lines.push(serviceLine(priceBook, "incentive", count, `深访：${count} 人 × 礼金`, 10000, `incentive${suffix}`));
+    lines.push(serviceLine(priceBook, "moderation", count, `深访：${count} 场 × 主持执行`, 10000, `moderation${suffix}`));
   }
 
-  if (type === "focus_group") {
+  if (includesFocusGroup) {
     const sessions = numberValue(parameters.sessionCount);
     const participants = numberValue(parameters.participantsPerSession) + numberValue(parameters.backupParticipantsPerSession);
     const people = sessions * participants;
-    lines.push(serviceLine(priceBook, "recruit", people, `${sessions} 场 × ${participants} 人 × 招募难度`, difficulty));
-    lines.push(serviceLine(priceBook, "incentive", people, `${people} 人 × 礼金`));
-    lines.push(serviceLine(priceBook, "moderation", sessions, `${sessions} 场 × 主持执行`));
-    if (parameters.deliveryMode !== "online") lines.push(serviceLine(priceBook, "venue", sessions, `${sessions} 场 × 场地设备`));
+    const suffix = type === "mixed_research" ? "_focus" : "";
+    lines.push(serviceLine(priceBook, "recruit", people, `座谈会：${sessions} 场 × ${participants} 人 × 招募难度`, difficulty, `recruit${suffix}`));
+    lines.push(serviceLine(priceBook, "incentive", people, `座谈会：${people} 人 × 礼金`, 10000, `incentive${suffix}`));
+    lines.push(serviceLine(priceBook, "moderation", sessions, `座谈会：${sessions} 场 × 主持执行`, 10000, `moderation${suffix}`));
+    if (parameters.deliveryMode !== "online") lines.push(serviceLine(priceBook, "venue", sessions, `座谈会：${sessions} 场 × 场地设备`, 10000, `venue${suffix}`));
   }
 
   if (parameters.transcriptRequired) {
-    const sessions = type === "focus_group" ? numberValue(parameters.sessionCount) : numberValue(parameters.interviewCount);
+    const sessions = (includesDepthInterview ? numberValue(parameters.interviewCount) : 0) + (includesFocusGroup ? numberValue(parameters.sessionCount) : 0);
     lines.push(serviceLine(priceBook, "transcript", sessions, `${sessions} 场 × 录音与逐字稿`));
   }
 
@@ -110,6 +116,7 @@ export function getRisks(project: QuoteProject): string[] {
   if (project.projectTypeId === "quantitative_online" && numberValue(project.parameters.incidenceRate) < 15) risks.push("筛选通过率较低，建议预留样本获取风险");
   if (project.projectTypeId === "focus_group" && project.parameters.deliveryMode !== "online") risks.push("请确认场地、设备与异地差旅是否全部计入");
   if (!project.parameters.reportDepth) risks.push("请确认是否需要报告以及报告深度");
+  if (project.projectTypeId === "mixed_research" && (!Array.isArray(project.parameters.qualitativeMethods) || project.parameters.qualitativeMethods.length === 0)) risks.push("综合研究至少需要选择一种定性研究方法");
   if (project.parameters.reportDepth !== "none" && !project.lines.some((line) => line.id.startsWith("labor_"))) risks.push("已选择报告，但尚未填写研究人员投入人天");
   return risks;
 }

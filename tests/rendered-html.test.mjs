@@ -45,7 +45,12 @@ test("keeps privacy, pricing, and PWA foundations in source", async () => {
   assert.doesNotMatch(pricing, /eval\s*\(/);
   assert.match(industryPack, /无需报告/);
   assert.match(industryPack, /研究总监/);
+  assert.match(industryPack, /定性研究方法/);
+  assert.match(industryPack, /焦点小组\/座谈会/);
+  assert.match(pricing, /includesDepthInterview/);
+  assert.match(pricing, /includesFocusGroup/);
   assert.match(models, /priceBookSnapshot/);
+  assert.match(models, /multiSelect/);
   assert.match(page, /成本与价格库/);
   assert.equal(JSON.parse(manifest).display, "standalone");
   assert.match(serviceWorker, /caches\.open/);

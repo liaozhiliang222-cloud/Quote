@@ -10,6 +10,7 @@ export type ParameterType =
   | "percentage"
   | "text"
   | "singleSelect"
+  | "multiSelect"
   | "boolean";
 
 export interface SelectOption {
@@ -25,6 +26,11 @@ export interface ParameterDefinition {
   unit?: string;
   required: boolean;
   options?: SelectOption[];
+  visibleWhen?: {
+    field: string;
+    includes?: string;
+    equals?: string | boolean;
+  };
 }
 
 export interface ProjectTypeDefinition {
@@ -92,7 +98,7 @@ export interface QuoteProject {
   projectTypeId: ResearchProjectTypeId;
   name: string;
   status: "draft" | "completed";
-  parameters: Record<string, string | number | boolean>;
+  parameters: Record<string, string | number | boolean | string[]>;
   taxRateBasisPoints: number;
   targetMarginBasisPoints: number;
   minimumMarginBasisPoints: number;
