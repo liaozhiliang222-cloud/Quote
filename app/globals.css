@@ -104,6 +104,14 @@ h1 { font-size:29px; margin:10px 0 8px; letter-spacing:-.03em; }
 .quote-actions { display:flex; gap:8px; }
 .quote-actions button { border:1px solid var(--line); background:#fff; padding:9px 12px; border-radius:8px; font-size:10px; cursor:pointer; }
 .quote-actions .profit-button { border-color:#cfd6ff; background:#f0f2ff; color:var(--blue); font-weight:700; }
+.version-badge { display:inline-block; margin-left:5px; padding:2px 6px; border-radius:9px; background:#eef1ff; color:var(--blue); font-size:8px; }
+.quote-status { border:1px solid var(--line); background:#fff; padding:8px 9px; border-radius:8px; color:#596477; font-size:9px; }
+.export-menu { position:relative; }
+.export-menu summary { list-style:none; cursor:pointer; border:1px solid var(--blue); background:var(--blue); color:#fff; padding:9px 13px; border-radius:8px; font-size:10px; }
+.export-menu summary::-webkit-details-marker { display:none; }
+.export-menu>div { position:absolute; z-index:30; right:0; top:calc(100% + 7px); width:210px; display:grid; gap:6px; padding:11px; border:1px solid var(--line); border-radius:10px; background:#fff; box-shadow:0 15px 35px #25315020; }
+.export-menu>div strong { color:#7e8797; font-size:8px; margin-top:3px; }
+.export-menu>div button { width:100%; text-align:left; }
 .steps { width:min(680px,85%); display:flex; align-items:flex-start; margin:30px auto 25px; }
 .steps>span { flex:0 0 auto; width:26px; height:26px; border-radius:50%; border:1px solid #d5dae3; background:#fff; color:#9ba3b1; display:grid; place-items:center; font-size:9px; position:relative; }
 .steps>span b { position:absolute; top:33px; white-space:nowrap; font-size:8px; font-weight:500; color:#8d95a4; }
@@ -151,10 +159,12 @@ h1 { font-size:29px; margin:10px 0 8px; letter-spacing:-.03em; }
 .multi-field label span { font-size:10px; font-weight:700; }
 .commercial { border-top:1px solid var(--line); margin-top:24px; padding-top:18px; }
 .commercial h3 { font-size:11px; margin:0 0 12px; }
-.commercial>div { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+.commercial>div { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
 .commercial label { color:#7d8696; font-size:9px; }
 .commercial label span { display:flex; align-items:center; margin-top:6px; border:1px solid #e1e4ea; border-radius:7px; overflow:hidden; padding-right:9px; }
 .commercial input { width:100%; height:34px; border:0; padding:0 9px; outline:0; font-size:11px; }
+.commercial .terms-field { grid-column:1/-1; }
+.commercial .terms-field textarea { display:block; width:100%; margin-top:6px; padding:10px; resize:vertical; border:1px solid #e1e4ea; border-radius:7px; outline:0; font:inherit; color:#243044; }
 .labor-section { border-top:1px solid var(--line); margin-top:24px; padding-top:20px; }
 .labor-title { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:14px; }
 .labor-title h3 { font-size:12px; margin:0 0 5px; }
@@ -229,6 +239,12 @@ h1 { font-size:29px; margin:10px 0 8px; letter-spacing:-.03em; }
 .data-card { padding:22px; }
 .data-card>div { display:flex; justify-content:space-between; padding:13px 0; border-bottom:1px solid var(--line); font-size:10px; }
 .data-card button { margin-top:18px; border:1px solid #f0cfd0; background:#fff5f5; color:#cf4d55; padding:9px 12px; border-radius:7px; cursor:pointer; font-size:9px; }
+.backup-card { grid-column:span 2; }
+.backup-card>p { max-width:720px; }
+.backup-card .backup-actions { justify-content:flex-start; gap:9px; border:0; padding:0; }
+.backup-card .backup-actions button,.restore-button { margin-top:16px; border:1px solid #cfd8f8; background:#f3f5ff; color:#405ed2; padding:9px 12px; border-radius:7px; cursor:pointer; font-size:9px; }
+.backup-card small { display:block; margin-top:8px; color:#8c95a5; font-size:8px; }
+.print-document { display:none; }
 .pricebook-page { max-width:1320px; }
 .pricebook-notice { display:flex; align-items:center; gap:12px; padding:14px 17px; margin-bottom:16px; border:1px solid #d8eee6; background:#f2faf7; border-radius:11px; }
 .pricebook-notice>span { width:28px; height:28px; border-radius:50%; display:grid; place-items:center; background:#d7f3e8; color:#078d69; font-weight:800; }
@@ -317,4 +333,40 @@ h1 { font-size:29px; margin:10px 0 8px; letter-spacing:-.03em; }
   .breakdown-row>div { display:none; }
 }
 
-@media print { .sidebar,.topbar,.mobile-nav,.steps,.back,.quote-actions,.risk-card,.form-panel { display:none!important; } .workspace { margin:0; } .quote-page { padding:20px; } .quote-layout { display:block; margin:0; } .summary-column { display:block; } .total-card,.detail-card { margin-bottom:12px; break-inside:avoid; } }
+@page { size:A4; margin:14mm; }
+@media print {
+  body { background:#fff; color:#162238; }
+  .sidebar,.workspace,.mobile-nav { display:none!important; }
+  .app-shell { display:block; min-height:0; }
+  .print-document { display:block!important; font-family:"Microsoft YaHei","PingFang SC",sans-serif; font-size:10pt; }
+  .print-document>header { display:flex; align-items:center; justify-content:space-between; padding-bottom:16px; border-bottom:2px solid #3857d6; color:#61708a; }
+  .print-brand { display:flex; align-items:center; gap:9px; }
+  .print-brand i { width:31px; height:31px; display:grid; place-items:center; border-radius:8px; background:#4969f5; color:#fff; font-style:normal; font-weight:800; }
+  .print-brand strong,.print-brand span { display:block; }
+  .print-brand span { margin-top:2px; color:#8792a4; font-size:7pt; }
+  .print-title { padding:24px 0 18px; }
+  .print-title p { margin:0 0 7px; color:#4969f5; font-size:9pt; font-weight:700; }
+  .print-title h1 { margin:0 0 12px; font-size:22pt; }
+  .print-title>div { display:flex; gap:20px; color:#7f8999; font-size:8pt; }
+  .print-summary { display:flex; gap:1px; margin-bottom:22px; background:#e3e7f0; border:1px solid #e3e7f0; }
+  .print-summary>div { flex:1; padding:12px; background:#f7f8fb; }
+  .print-summary span,.print-summary b,.print-summary strong { display:block; }
+  .print-summary span { color:#7c8798; font-size:7pt; }
+  .print-summary b,.print-summary strong { margin-top:5px; }
+  .print-summary strong { color:#3554cc; font-size:16pt; }
+  .print-section { break-inside:auto; }
+  .print-section h2,.print-terms h2 { margin:0 0 10px; font-size:11pt; }
+  .print-document table { width:100%; border-collapse:collapse; font-size:7.5pt; }
+  .print-document thead { display:table-header-group; }
+  .print-document th { padding:8px 6px; background:#24385f; color:#fff; text-align:left; }
+  .print-document td { padding:8px 6px; border-bottom:1px solid #e2e6ed; vertical-align:top; }
+  .print-document tr { break-inside:avoid; }
+  .print-total { width:310px; margin:18px 0 20px auto; break-inside:avoid; }
+  .print-total>div { display:flex; justify-content:space-between; padding:7px 3px; border-bottom:1px solid #e3e7ed; }
+  .print-total .grand { padding:10px 3px; color:#2949c8; font-size:12pt; }
+  .print-terms { padding:14px; border:1px solid #e1e5ec; background:#fafbfc; break-inside:avoid; }
+  .print-terms p { margin:0; color:#5f6a7b; line-height:1.7; white-space:pre-wrap; }
+  .print-document>footer { display:flex; justify-content:space-between; margin-top:22px; padding-top:10px; border-top:1px solid #dfe4eb; color:#8a94a4; font-size:7pt; }
+  .print-internal>header { border-color:#b0782d; }
+  .print-internal .print-summary strong { color:#9b641f; }
+}

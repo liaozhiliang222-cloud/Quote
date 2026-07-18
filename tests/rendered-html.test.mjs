@@ -24,14 +24,17 @@ test("server-renders the research quote application shell", async () => {
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape/);
 });
 
-test("keeps privacy, pricing, and PWA foundations in source", async () => {
-  const [page, layout, pricing, database, industryPack, models, manifest, serviceWorker] = await Promise.all([
+test("keeps privacy, pricing, export, and PWA foundations in source", async () => {
+  const [page, layout, pricing, database, industryPack, models, exportsSource, backup, quoteDocument, manifest, serviceWorker] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/pricing.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/db.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/industry-pack.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/lib/models.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/exports.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/lib/backup.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/quote-document.tsx", import.meta.url), "utf8"),
     readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
   ]);
@@ -46,9 +49,11 @@ test("keeps privacy, pricing, and PWA foundations in source", async () => {
   assert.match(industryPack, /无需报告/);
   assert.match(industryPack, /覆盖省份/);
   assert.match(industryPack, /研究总监/);
-  assert.match(industryPack, /定性研究方法/);
+  assert.match(industryPack, /研究模块/);
   assert.match(industryPack, /焦点小组\/座谈会/);
   assert.match(industryPack, /专家访谈/);
+  assert.match(industryPack, /线下定量研究/);
+  assert.match(industryPack, /桌面研究/);
   assert.match(industryPack, /专家稀缺度/);
   assert.match(pricing, /includesDepthInterview/);
   assert.match(pricing, /includesFocusGroup/);
@@ -58,11 +63,22 @@ test("keeps privacy, pricing, and PWA foundations in source", async () => {
   assert.match(pricing, /item\.id\.startsWith\("labor_"\)/);
   assert.match(models, /priceBookSnapshot/);
   assert.match(models, /multiSelect/);
+  assert.match(models, /quoteVersion/);
+  assert.match(models, /rootProjectId/);
   assert.match(page, /成本与价格库/);
   assert.match(page, /项目成本调整/);
   assert.match(page, /人员工时成本按价格库固定单价计算/);
   assert.match(page, /利润测算/);
   assert.match(page, /客户折扣方案/);
+  assert.match(page, /创建新版本/);
+  assert.match(page, /下载本地备份/);
+  assert.match(database, /restoreLocalData/);
+  assert.match(backup, /yanjia-local-backup/);
+  assert.match(exportsSource, /write-excel-file\/browser/);
+  assert.match(exportsSource, /customerVisible/);
+  assert.match(exportsSource, /内部成本/);
+  assert.match(quoteDocument, /客户报价单/);
+  assert.match(quoteDocument, /内部成本测算单/);
   assert.equal(JSON.parse(manifest).display, "standalone");
   assert.match(serviceWorker, /caches\.open/);
 });

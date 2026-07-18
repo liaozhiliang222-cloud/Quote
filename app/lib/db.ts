@@ -76,3 +76,17 @@ export async function deleteAllProjects(): Promise<void> {
   });
   database.close();
 }
+
+export async function restoreLocalData(projects: QuoteProject[], priceBook: PriceBookConfig): Promise<void> {
+  const database = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction([STORE_NAME, SETTINGS_STORE], "readwrite");
+    const projectStore = transaction.objectStore(STORE_NAME);
+    projectStore.clear();
+    for (const project of projects) projectStore.put(project);
+    transaction.objectStore(SETTINGS_STORE).put({ id: "priceBook", value: priceBook });
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+  });
+  database.close();
+}

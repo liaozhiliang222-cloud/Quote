@@ -1,8 +1,13 @@
 export type ResearchProjectTypeId =
   | "quantitative_online"
+  | "quantitative_offline"
   | "in_depth_interview"
   | "focus_group"
+  | "expert_interview"
+  | "desk_research"
   | "mixed_research";
+
+export type QuoteProjectStatus = "draft" | "completed" | "sent" | "won" | "lost" | "archived";
 
 export type ParameterType =
   | "number"
@@ -122,7 +127,12 @@ export interface QuoteProject {
   industryPackId: string;
   projectTypeId: ResearchProjectTypeId;
   name: string;
-  status: "draft" | "completed";
+  status: QuoteProjectStatus;
+  quoteVersion: number;
+  rootProjectId: string;
+  parentProjectId?: string;
+  validityDays: number;
+  businessTerms: string;
   parameters: Record<string, string | number | boolean | string[]>;
   taxRateBasisPoints: number;
   targetMarginBasisPoints: number;
