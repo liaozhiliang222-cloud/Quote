@@ -1,0 +1,13 @@
+{
+  "name": "研价 · 调研报价助手",
+  "short_name": "研价",
+  "description": "本地优先、隐私优先的调研行业报价工具",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6f7fa",
+  "theme_color": "#4969f5",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
